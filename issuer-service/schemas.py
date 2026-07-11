@@ -33,6 +33,7 @@ class AgentResponse(BaseModel):
 # ── Token ────────────────────────────────────────────────────────────────────
 
 class TokenRequest(BaseModel):
+    owner_id: str
     scopes: list[str]
     expiry_minutes: int = 30
 

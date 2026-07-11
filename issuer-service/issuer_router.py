@@ -67,6 +67,9 @@ def issue_token(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
+    if agent.owner_id != body.owner_id:
+        raise HTTPException(status_code=403, detail="Owner unauthorized for this agent")
+
     now = datetime.now(timezone.utc)
     claims: dict = {
         "sub": agent.id,

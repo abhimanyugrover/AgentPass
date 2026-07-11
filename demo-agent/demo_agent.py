@@ -103,11 +103,11 @@ def register_agent(owner_id: str, agent_name: str) -> str:
     return resp.json()["agent_id"]
 
 
-def issue_token(agent_id: str, scopes: list, expiry_minutes: int = 30) -> str:
+def issue_token(agent_id: str, owner_id: str, scopes: list, expiry_minutes: int = 30) -> str:
     """Issue an Agent Identity Token."""
     resp = client.post(
         f"{ISSUER_URL}/agents/{agent_id}/issue-token",
-        json={"scopes": scopes, "expiry_minutes": expiry_minutes},
+        json={"owner_id": owner_id, "scopes": scopes, "expiry_minutes": expiry_minutes},
     )
     resp.raise_for_status()
     return resp.json()["token"]
@@ -256,7 +256,7 @@ def run_demo():
     # Issue token
     scopes = ["browse", "purchase:max_500"]
     print_step("🔑", f"Issuing Agent Identity Token (scopes: {scopes})...")
-    token = issue_token(agent_id, scopes)
+    token = issue_token(agent_id, owner_id, scopes)
     print_step("✅", f"AIT issued: {token[:40]}...")
 
     # Get initial trust score

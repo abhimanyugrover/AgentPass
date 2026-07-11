@@ -63,3 +63,21 @@ class TrustEvent(Base):
     )
 
     agent: Mapped["Agent"] = relationship(back_populates="trust_events")
+
+
+class IssuedPass(Base):
+    __tablename__ = "issued_passes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("agents.id"), nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(2048), nullable=False)
+    scopes: Mapped[str] = mapped_column(String(512), nullable=False)  # comma-separated list
+    expiry: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    agent: Mapped["Agent"] = relationship()

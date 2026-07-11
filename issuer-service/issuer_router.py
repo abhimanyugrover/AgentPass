@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from crypto import get_public_key_jwk, sign_token
 from database import get_db
-from models import Agent, Owner
+from models import Agent, Owner, IssuedPass
 from schemas import (
     AgentRegister,
     AgentResponse,
@@ -17,6 +17,9 @@ from schemas import (
     OwnerResponse,
     TokenRequest,
     TokenResponse,
+    OwnerListEntry,
+    AgentListEntry,
+    IssuedPassEntry,
 )
 
 router = APIRouter()
@@ -71,17 +74,69 @@ def issue_token(
         raise HTTPException(status_code=403, detail="Owner unauthorized for this agent")
 
     now = datetime.now(timezone.utc)
+    expiry_dt = now + timedelta(minutes=body.expiry_minutes)
     claims: dict = {
         "sub": agent.id,
         "owner_id": agent.owner_id,
         "agent_name": agent.agent_name,
         "scopes": body.scopes,
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=body.expiry_minutes)).timestamp()),
+        "exp": int(expiry_dt.timestamp()),
     }
 
     token = sign_token(claims)
+
+    # Save Issued Pass to DB
+    issued_pass = IssuedPass(
+        agent_id=agent.id,
+        token=token,
+        scopes=",".join(body.scopes),
+        expiry=expiry_dt,
+    )
+    db.add(issued_pass)
+    db.commit()
+
     return TokenResponse(token=token)
+
+
+# ── Query endpoints ──────────────────────────────────────────────────────────
+
+@router.get("/owners", response_model=list[OwnerListEntry])
+def list_owners(db: Session = Depends(get_db)):
+    """List all registered owners."""
+    return db.query(Owner).all()
+
+
+@router.get("/agents", response_model=list[AgentListEntry])
+def list_agents(db: Session = Depends(get_db)):
+    """List all registered agents."""
+    return db.query(Agent).all()
+
+
+@router.get("/passes", response_model=list[IssuedPassEntry])
+def list_passes(db: Session = Depends(get_db)):
+    """List all previously issued passes."""
+    results = db.query(
+        IssuedPass.id,
+        IssuedPass.agent_id,
+        Agent.agent_name,
+        IssuedPass.token,
+        IssuedPass.scopes,
+        IssuedPass.expiry,
+        IssuedPass.created_at
+    ).join(Agent, IssuedPass.agent_id == Agent.id).order_by(IssuedPass.created_at.desc()).all()
+    
+    return [
+        IssuedPassEntry(
+            id=r.id,
+            agent_id=r.agent_id,
+            agent_name=r.agent_name,
+            token=r.token,
+            scopes=r.scopes,
+            expiry=r.expiry,
+            created_at=r.created_at
+        ) for r in results
+    ]
 
 
 # ── JWKS endpoint ────────────────────────────────────────────────────────────

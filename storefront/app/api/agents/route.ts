@@ -4,36 +4,45 @@ const ISSUER_URL = process.env.ISSUER_URL || 'http://localhost:8000';
 
 export async function GET() {
   try {
-    // The issuer doesn't have a list-agents endpoint yet,
-    // so we'll return data from the activity stream to show registered agents
-    const resp = await fetch(`${ISSUER_URL}/activity-stream`, { cache: 'no-store' });
-    if (!resp.ok) return NextResponse.json({ agents: [] });
-    const activities = await resp.json();
+    // 1. Fetch all registered agents from database
+    const agentsResp = await fetch(`${ISSUER_URL}/agents`, { cache: 'no-store' });
+    if (!agentsResp.ok) return NextResponse.json({ agents: [] });
+    const dbAgents = await agentsResp.ok ? await agentsResp.json() : [];
 
-    // Extract unique agents from activity
-    const agentMap = new Map();
-    for (const entry of activities) {
-      if (!agentMap.has(entry.agent_id)) {
-        agentMap.set(entry.agent_id, {
-          agent_id: entry.agent_id,
-          agent_name: entry.agent_name,
-          trust_score: entry.trust_score,
-          last_action: entry.action,
-          last_result: entry.result,
-          last_seen: entry.timestamp,
-        });
-      } else {
-        // Update with latest info
-        const existing = agentMap.get(entry.agent_id);
-        existing.trust_score = entry.trust_score;
-        existing.last_action = entry.action;
-        existing.last_result = entry.result;
-        existing.last_seen = entry.timestamp;
-      }
-    }
+    // 2. Fetch trust scores for each agent
+    const agentsWithScores = await Promise.all(
+      dbAgents.map(async (agent: any) => {
+        try {
+          const scoreResp = await fetch(`${ISSUER_URL}/trust-score/${agent.id}`, { cache: 'no-store' });
+          if (scoreResp.ok) {
+            const scoreData = await scoreResp.json();
+            return {
+              agent_id: agent.id,
+              agent_name: agent.agent_name,
+              owner_id: agent.owner_id,
+              created_at: agent.created_at,
+              trust_score: scoreData.score,
+              event_count: scoreData.event_count,
+              last_updated: scoreData.last_updated,
+            };
+          }
+        } catch (e) {
+          console.error(`Failed to fetch score for agent ${agent.id}`, e);
+        }
+        return {
+          agent_id: agent.id,
+          agent_name: agent.agent_name,
+          owner_id: agent.owner_id,
+          created_at: agent.created_at,
+          trust_score: 70.0,
+          event_count: 0,
+        };
+      })
+    );
 
-    return NextResponse.json({ agents: Array.from(agentMap.values()) });
-  } catch {
+    return NextResponse.json({ agents: agentsWithScores });
+  } catch (e) {
+    console.error('Error fetching agents:', e);
     return NextResponse.json({ agents: [] });
   }
 }

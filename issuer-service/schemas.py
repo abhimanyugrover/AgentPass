@@ -67,3 +67,38 @@ class ActivityEntry(BaseModel):
     result: str
     reason: str = ""
     trust_score: float = Field(default=0.0)
+
+
+# ── Query Lists ──────────────────────────────────────────────────────────────
+
+class OwnerListEntry(BaseModel):
+    id: str
+    name: str
+    email: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AgentListEntry(BaseModel):
+    id: str
+    owner_id: str
+    agent_name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class IssuedPassEntry(BaseModel):
+    id: int
+    agent_id: str
+    agent_name: str
+    token: str
+    scopes: str
+    expiry: datetime
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
